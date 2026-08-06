@@ -10,7 +10,6 @@ An agentic AI system that continuously reasons over geotechnical sensor data to 
 
 ---
 
-![alt text](image.png)
 ## Table of Contents
 
 - [The Problem](#the-problem)
@@ -83,18 +82,11 @@ A `PreToolUse` **hook** enforces the pipeline order at the tool-call level — t
 
 ## Tech Stack
 
-<<<<<<< HEAD
-- **Snowflake** — data warehouse, tables in `GEOTECH.CORE`
-- **Cortex Code (CoCo) CLI** — agent runtime; 3 custom Agent Skills + 1 governance hook + Slack MCP integration
-- **Streamlit in Snowflake** — operational dashboard
-=======
 | Layer | Technology |
 |-------|-----------|
 | Data warehouse | **Snowflake** — tables in `GEOTECH.CORE` |
 | Agent runtime | **Cortex Code (CoCo) CLI** — 3 custom Agent Skills + 1 governance hook + Slack MCP integration |
-| Showcase web UI | **Astro.js** — bridging to CoCo via the [Cortex Code Agent SDK](https://docs.snowflake.com/en/user-guide/cortex-code-agent-sdk/cortex-code-agent-sdk) (TypeScript) |
 | Operational dashboard | **Streamlit in Snowflake** |
->>>>>>> 11dbcfd (improvement to the code)
 
 ---
 
@@ -165,15 +157,9 @@ $geotech-risk-synthesis analyze flagged cases
 $geotech-action-orchestrator execute decisions
 ```
 
-### 3. Web UI (optional)
+### 3. Streamlit Dashboard
 
-```bash
-cd web
-npm install
-npm run dev
-```
-
-> Requires CoCo CLI on the same host (or `CORTEX_CODE_CLI_PATH` set). This UI is a **presentation layer**, not a replacement for the CLI-based agent.
+The operational dashboard is deployed as **Streamlit in Snowflake (SiS)** and accessible directly from Snowsight. No local setup required.
 
 ---
 
@@ -184,7 +170,7 @@ npm run dev
 | Screenshot | Description |
 |-----------|-------------|
 | ![overview](docs/screenshots/overview.png) | Facility overview dashboard |
-| ![chat](docs/screenshots/chat.png) | Astro chat UI querying the agent |
+| ![chat](docs/screenshots/chat.png) | Streamlit chatbot querying sensor data |
 | ![slack](docs/screenshots/slack.png) | Live Slack alert on a CRITICAL case |
 
 *(Replace with real screenshots before submission)*
@@ -216,8 +202,4 @@ MIT — see [LICENSE](LICENSE)
 
 ## Author
 
-<<<<<<< HEAD
-Built by Simon — AI Engineer(#)
-=======
 Built by **Simon** — AI Engineer
->>>>>>> 11dbcfd (improvement to the code)
