@@ -1,4 +1,4 @@
-# 🏔️ GeoTech Sentinel — Predictive Tailings Dam Safety Agent
+# GeoTech Sentinel - Predictive Tailings Dam Safety Agent
 
 [![CoCo CLI](https://img.shields.io/badge/Snowflake-CoCo%20CLI-29B5E8?logo=snowflake)](https://docs.snowflake.com/en/user-guide/cortex-code/cortex-code)
 [![Hackathon](https://img.shields.io/badge/Hackathon-2026-orange)]()
@@ -6,66 +6,72 @@
 
 > Built for the **Snowflake CoCo CLI Hackathon 2026** — Intelligent Workflow Automation Agent track
 
-An agentic AI system that continuously reasons over geotechnical sensor data to catch structural
-drift in tailings storage facilities **before** it becomes a threshold breach — turning a reactive
-safety process into a predictive one, fully orchestrated through Snowflake Cortex Code (CoCo) CLI.
+An agentic AI system that continuously reasons over geotechnical sensor data to catch structural drift in tailings storage facilities **before** it becomes a threshold breach — turning a reactive safety process into a predictive one, fully orchestrated through Snowflake Cortex Code (CoCo) CLI.
+
+---
+
+## Table of Contents
+
+- [The Problem](#the-problem)
+- [What It Does](#what-it-does)
+- [Design Principles](#design-principles)
+- [Tech Stack](#tech-stack)
+- [Repository Structure](#repository-structure)
+- [Setup](#setup)
+- [Demo](#demo)
+- [Impact](#impact)
+- [Roadmap](#roadmap)
+- [License](#license)
 
 ---
 
 ## The Problem
 
-Mine tailings storage facilities are monitored by hundreds of sensors (piezometers, inclinometers,
-survey prisms, extensometers). Industry practice today is largely **threshold-based**: an alert
-only fires once a reading crosses a hard design limit — by which point structural movement is
-often already underway.
+Mine tailings storage facilities are monitored by hundreds of sensors (piezometers, inclinometers, survey prisms, extensometers). Industry practice today is largely **threshold-based**: an alert only fires once a reading crosses a hard design limit — by which point structural movement is often already underway.
 
-Catastrophic tailings dam failures were preceded by **gradual, statistically detectable drift**
-that never tripped a single threshold, because no system correlated multiple sensors across a
-zone in real time. The cost of missing this signal isn't just financial — it's life-safety,
-environmental, and regulatory.
+Catastrophic tailings dam failures were preceded by **gradual, statistically detectable drift** that never tripped a single threshold, because no system correlated multiple sensors across a zone in real time. The cost of missing this signal isn't just financial — it's life-safety, environmental, and regulatory.
 
-**This project asks: can an AI agent catch that pattern early, reason about *why* it matters
-given the specific facility's risk context, and route it to the right human — automatically?**
+**This project asks:** Can an AI agent catch that pattern early, reason about *why* it matters given the specific facility's risk context, and route it to the right human — automatically?
 
 ---
 
 ## What It Does
 
-A three-stage agentic pipeline, orchestrated entirely through CoCo CLI, from raw sensor
-time-series to a routed, actionable safety decision — with no manual triage for the majority of
-cases.
+A three-stage agentic pipeline, orchestrated entirely through CoCo CLI, from raw sensor time-series to a routed, actionable safety decision — with no manual triage for the majority of cases.
 
+```
 Sensor readings (Snowflake)
-│
-▼
-┌─────────────────────────┐
-│ $geotech-drift-scan │ deterministic — trend regression, rate-of-change,
-│ (Agent Skill) │ cross-sensor correlation, threshold-approach forecast
-└─────────────┬────────────┘
-▼
-┌─────────────────────────┐
-│ $geotech-risk-synthesis │ LLM reasoning, scoped to flagged cases only —
-│ (Agent Skill) │ explains why it matters given facility risk class
-└─────────────┬────────────┘
-▼
-┌─────────────────────────┐
-│ $geotech-action- │ deterministic branching — auto-monitor, schedule
-│ orchestrator (Agent Skill)│ inspection, or emergency escalation + Slack alert
-└─────────────┬────────────┘
-▼
+         |
+         v
++---------------------------+
+|   $geotech-drift-scan     |  Deterministic: trend regression, rate-of-change,
+|   (Agent Skill)           |  cross-sensor correlation, threshold-approach forecast
++-------------+-------------+
+              |
+              v
++---------------------------+
+| $geotech-risk-synthesis   |  LLM reasoning (scoped to flagged cases only):
+|   (Agent Skill)           |  explains why it matters given facility risk class
++-------------+-------------+
+              |
+              v
++---------------------------+
+| $geotech-action-          |  Deterministic branching: auto-monitor, schedule
+|   orchestrator            |  inspection, or emergency escalation + Slack alert
++-------------+-------------+
+              |
+              v
 Audit trail (Snowflake) + real-time Slack notification
+```
 
-
-A `PreToolUse` **hook** enforces the pipeline order at the tool-call level — the orchestrator
-cannot write a final decision for a case that hasn't been through risk synthesis, regardless of
-what the agent is asked to do.
+A `PreToolUse` **hook** enforces the pipeline order at the tool-call level — the orchestrator cannot write a final decision for a case that hasn't been through risk synthesis, regardless of what the agent is asked to do.
 
 ---
 
-## Why This Design
+## Design Principles
 
-| Principle | How it's applied |
-|---|---|
+| Principle | How It's Applied |
+|-----------|-----------------|
 | **Deterministic where possible** | Detection (Stage 1) and action routing (Stage 3) are pure SQL/statistics — auditable, cheap, reproducible. The LLM is invoked only where judgment is genuinely needed. |
 | **Leading indicator, not lagging alarm** | Detection targets sustained trend + cross-sensor correlation + threshold-approach forecasting, not just breach detection. |
 | **Governance is enforced, not documented** | The pipeline-order rule lives in a hook that can block a tool call. |
@@ -76,39 +82,42 @@ what the agent is asked to do.
 
 ## Tech Stack
 
-- **Snowflake** — data warehouse, tables in `GEOTECH.CORE`
-- **Cortex Code (CoCo) CLI** — agent runtime; 3 custom Agent Skills + 1 governance hook + Slack MCP integration
-- **Astro.js** — showcase web UI, bridging to CoCo via the [Cortex Code Agent SDK](https://docs.snowflake.com/en/user-guide/cortex-code-agent-sdk/cortex-code-agent-sdk) (TypeScript)
-- **Streamlit in Snowflake** — operational dashboard
+| Layer | Technology |
+|-------|-----------|
+| Data warehouse | **Snowflake** — tables in `GEOTECH.CORE` |
+| Agent runtime | **Cortex Code (CoCo) CLI** — 3 custom Agent Skills + 1 governance hook + Slack MCP integration |
+| Showcase web UI | **Astro.js** — bridging to CoCo via the [Cortex Code Agent SDK](https://docs.snowflake.com/en/user-guide/cortex-code-agent-sdk/cortex-code-agent-sdk) (TypeScript) |
+| Operational dashboard | **Streamlit in Snowflake** |
 
 ---
 
 ## Repository Structure
 
+```
 .
-├── geotech-agent/ # CoCo project root
-│ ├── AGENTS.md
-│ ├── .cortex/hooks/hooks.json
-│ ├── mcp.json # Slack MCP server config
-│ └── skills/
-│ ├── geotech-drift-scan/SKILL.md
-│ ├── geotech-risk-synthesis/SKILL.md
-│ └── geotech-action-orchestrator/SKILL.md
+├── geotech-agent/                        # CoCo project root
+│   ├── AGENTS.md
+│   ├── .cortex/hooks/hooks.json
+│   ├── mcp.json                          # Slack MCP server config
+│   └── skills/
+│       ├── geotech-drift-scan/SKILL.md
+│       ├── geotech-risk-synthesis/SKILL.md
+│       └── geotech-action-orchestrator/SKILL.md
 ├── sql/
-│ ├── 01_schema.sql
-│ └── 02_synthetic_data_prompts.md
-├── web/ # Astro.js showcase UI
-│ ├── astro.config.mjs
-│ ├── package.json
-│ └── src/
-│ ├── layouts/Layout.astro
-│ ├── pages/index.astro
-│ ├── pages/api/chat.ts
-│ ├── components/ChatWidget.tsx
-│ └── styles/global.css
+│   ├── 01_schema.sql
+│   └── 02_synthetic_data_prompts.md
+├── web/                                  # Astro.js showcase UI
+│   ├── astro.config.mjs
+│   ├── package.json
+│   └── src/
+│       ├── layouts/Layout.astro
+│       ├── pages/index.astro
+│       ├── pages/api/chat.ts
+│       ├── components/ChatWidget.tsx
+│       └── styles/global.css
 └── docs/
-└── architecture.md
-
+    └── architecture.md
+```
 
 ---
 
@@ -116,59 +125,67 @@ what the agent is asked to do.
 
 ### 1. Snowflake
 
--- run sql/01_schema.sql in a worksheet or via CoCo
--- then run the prompts in sql/02_synthetic_data_prompts.md inside a CoCo session
+Run the schema setup and seed data:
 
+```sql
+-- Run in a Snowflake worksheet or via CoCo
+SOURCE sql/01_schema.sql;
+```
+
+Then run the prompts in `sql/02_synthetic_data_prompts.md` inside a CoCo session to generate synthetic sensor data.
 
 ### 2. CoCo CLI
 
+```bash
 cortex connections set <your_account>
 cd geotech-agent
 cortex
+```
 
-Inside the session:
+Inside the CoCo session, run the pipeline in order:
 
+```
 $geotech-drift-scan run for GEOTECH.CORE last 18 months
 $geotech-risk-synthesis analyze flagged cases
 $geotech-action-orchestrator execute decisions
+```
 
+### 3. Web UI (optional)
 
-### 3. Web UI (optional — live demo)
-
+```bash
 cd web
 npm install
 npm run dev
+```
 
-Requires CoCo CLI on the same host (or `CORTEX_CODE_CLI_PATH` set) — this UI is a
-**presentation layer**, not a replacement for the CLI-based agent.
+> Requires CoCo CLI on the same host (or `CORTEX_CODE_CLI_PATH` set). This UI is a **presentation layer**, not a replacement for the CLI-based agent.
 
 ---
 
 ## Demo
 
-[▶ Demo video](#) — end-to-end run: scan → synthesize → route → Slack alert → audit trail.
+[Demo video](#) — end-to-end run: scan, synthesize, route, Slack alert, audit trail.
 
 | Screenshot | Description |
-|---|---|
+|-----------|-------------|
 | ![overview](docs/screenshots/overview.png) | Facility overview dashboard |
 | ![chat](docs/screenshots/chat.png) | Astro chat UI querying the agent |
 | ![slack](docs/screenshots/slack.png) | Live Slack alert on a CRITICAL case |
 
-*(replace with real screenshots before submission)*
+*(Replace with real screenshots before submission)*
 
 ---
 
 ## Impact
 
-Tailings dam failures are catastrophic and rare — which is exactly why leading indicators matter
-more than lagging alarms. On a synthetic 240-sensor / 6-facility dataset modeled on real
-monitoring practice, this pipeline surfaces cross-sensor correlated drift well before a threshold
-breach would trigger a conventional alarm, resolving the majority of flagged cases as routine
-monitoring or scheduled inspection with no human triage required.
+Tailings dam failures are catastrophic and rare — which is exactly why leading indicators matter more than lagging alarms. On a synthetic 240-sensor / 6-facility dataset modeled on real monitoring practice, this pipeline:
+
+- Surfaces cross-sensor correlated drift well before a threshold breach would trigger a conventional alarm
+- Resolves the majority of flagged cases as routine monitoring or scheduled inspection with no human triage required
 
 ---
 
-## What's Next
+## Roadmap
 
 - Real sensor ingestion via Snowflake native connectors
 - Subagent-based parallel case analysis for larger sensor fleets
@@ -180,6 +197,8 @@ monitoring or scheduled inspection with no human triage required.
 
 MIT — see [LICENSE](LICENSE)
 
+---
+
 ## Author
 
-Built by Simon — AI Engineer(#)
+Built by **Simon** — AI Engineer
