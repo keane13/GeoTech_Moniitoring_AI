@@ -6,7 +6,7 @@
 
 > Built for the **Snowflake CoCo CLI Hackathon 2026** — Intelligent Workflow Automation Agent track
 
-An agentic AI system that continuously reasons over geotechnical sensor data to catch structural drift in tailings storage facilities **before** it becomes a threshold breach — turning a reactive safety process into a predictive one, fully orchestrated through Snowflake Cortex Code (CoCo) CLI.
+An agentic AI system that continuously reasons over geotechnical sensor data to catch structural drift in tailings storage facilities **before** it becomes a threshold breach turning a reactive safety process into a predictive one, fully orchestrated through Snowflake Cortex Code (CoCo) CLI.
 
 ---
 
@@ -29,9 +29,9 @@ An agentic AI system that continuously reasons over geotechnical sensor data to 
 
 ## The Problem
 
-Mine tailings storage facilities are monitored by hundreds of sensors (piezometers, inclinometers, survey prisms, extensometers). Industry practice today is largely **threshold-based**: an alert only fires once a reading crosses a hard design limit — by which point structural movement is often already underway.
+Mine tailings storage facilities are monitored by hundreds of sensors (piezometers, inclinometers, survey prisms, extensometers). Industry practice today is largely **threshold-based**: an alert only fires once a reading crosses a hard design limit by which point structural movement is often already underway.
 
-Catastrophic tailings dam failures were preceded by **gradual, statistically detectable drift** that never tripped a single threshold, because no system correlated multiple sensors across a zone in real time. The cost of missing this signal isn't just financial — it's life-safety, environmental, and regulatory.
+Catastrophic tailings dam failures were preceded by **gradual, statistically detectable drift** that never tripped a single threshold, because no system correlated multiple sensors across a zone in real time. The cost of missing this signal isn't just financial it's life-safety, environmental, and regulatory.
 
 **This project asks:** Can an AI agent catch that pattern early, reason about *why* it matters given the specific facility's risk context, and route it to the right human — automatically?
 
@@ -39,7 +39,7 @@ Catastrophic tailings dam failures were preceded by **gradual, statistically det
 
 ## What It Does
 
-A three-stage agentic pipeline, orchestrated entirely through CoCo CLI, from raw sensor time-series to a routed, actionable safety decision — with no manual triage for the majority of cases.
+A three-stage agentic pipeline, orchestrated entirely through CoCo CLI, from raw sensor time-series to a routed, actionable safety decision with no manual triage for the majority of cases.
 
 ```
 Sensor readings (Snowflake)
@@ -66,7 +66,7 @@ Sensor readings (Snowflake)
 Audit trail (Snowflake) + real-time Slack notification
 ```
 
-A `PreToolUse` **hook** enforces the pipeline order at the tool-call level — the orchestrator cannot write a final decision for a case that hasn't been through risk synthesis, regardless of what the agent is asked to do.
+A `PreToolUse` **hook** enforces the pipeline order at the tool-call level the orchestrator cannot write a final decision for a case that hasn't been through risk synthesis, regardless of what the agent is asked to do.
 
 ---
 
@@ -74,7 +74,7 @@ A `PreToolUse` **hook** enforces the pipeline order at the tool-call level — t
 
 | Principle | How It's Applied |
 |-----------|-----------------|
-| **Deterministic where possible** | Detection (Stage 1) and action routing (Stage 3) are pure SQL/statistics — auditable, cheap, reproducible. The LLM is invoked only where judgment is genuinely needed. |
+| **Deterministic where possible** | Detection (Stage 1) and action routing (Stage 3) are pure SQL/statistics auditable, cheap, reproducible. The LLM is invoked only where judgment is genuinely needed. |
 | **Leading indicator, not lagging alarm** | Detection targets sustained trend + cross-sensor correlation + threshold-approach forecasting, not just breach detection. |
 | **Governance is enforced, not documented** | The pipeline-order rule lives in a hook that can block a tool call. |
 | **Every decision is traceable** | Every case carries its detection pattern, risk score, LLM rationale, and final action. |
@@ -167,7 +167,7 @@ The operational dashboard is deployed as **Streamlit in Snowflake (SiS)** and ac
 
 ## Demo
 
-[Demo video](#) — end-to-end run: scan, synthesize, route, Slack alert, audit trail.
+[Demo video](#) end-to-end run: scan, synthesize, route, Slack alert, audit trail.
 
 | Screenshot | Description |
 |-----------|-------------|
@@ -181,7 +181,7 @@ The operational dashboard is deployed as **Streamlit in Snowflake (SiS)** and ac
 
 ## Impact
 
-Tailings dam failures are catastrophic and rare — which is exactly why leading indicators matter more than lagging alarms. On a synthetic 240-sensor / 6-facility dataset modeled on real monitoring practice, this pipeline:
+Tailings dam failures are catastrophic and rare which is exactly why leading indicators matter more than lagging alarms. On a synthetic 240-sensor / 6-facility dataset modeled on real monitoring practice, this pipeline:
 
 - Surfaces cross-sensor correlated drift well before a threshold breach would trigger a conventional alarm
 - Resolves the majority of flagged cases as routine monitoring or scheduled inspection with no human triage required
