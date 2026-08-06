@@ -10,7 +10,7 @@ An agentic AI system that continuously reasons over geotechnical sensor data to 
 
 ---
 
-![alt text](image-1.png)
+![alt text](app_screenshot.png)
 
 ## Table of Contents
 
