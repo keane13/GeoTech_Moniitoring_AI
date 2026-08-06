@@ -101,28 +101,36 @@ A `PreToolUse` **hook** enforces the pipeline order at the tool-call level — t
 
 ```
 .
-├── geotech-agent/                        # CoCo project root
-│   ├── AGENTS.md
-│   ├── .cortex/hooks/hooks.json
-│   ├── mcp.json                          # Slack MCP server config
-│   └── skills/
-│       ├── geotech-drift-scan/SKILL.md
-│       ├── geotech-risk-synthesis/SKILL.md
-│       └── geotech-action-orchestrator/SKILL.md
-├── sql/
-│   ├── 01_schema.sql
-│   └── 02_synthetic_data_prompts.md
-├── web/                                  # Astro.js showcase UI
-│   ├── astro.config.mjs
-│   ├── package.json
-│   └── src/
-│       ├── layouts/Layout.astro
-│       ├── pages/index.astro
-│       ├── pages/api/chat.ts
-│       ├── components/ChatWidget.tsx
-│       └── styles/global.css
-└── docs/
-    └── architecture.md
+├── AGENTS.md                   # Agent pipeline documentation
+├── architecture.md             # System architecture overview
+├── README.md
+│
+├── cortex/
+│   └── hooks/
+│       ├── hooks.json
+│       └── validate-geotech-pipeline.sh
+│
+├── skills/
+│   ├── geotech-drift-scan/SKILL.md
+│   ├── geotech-risk-synthesis/SKILL.md
+│   └── geotech-action-orchestrator/SKILL.md
+│
+├── streamlit/                  # Operational dashboard (SiS)
+│   ├── streamlit_app.py
+│   ├── requirements.txt
+│   ├── .streamlit/config.toml
+│   ├── components/
+│   │   └── styles.py
+│   ├── utils/
+│   │   └── data.py
+│   └── views/
+│       ├── overview.py
+│       ├── dashboard.py
+│       ├── audit_trail.py
+│       └── chatbot.py
+│
+└── .snowflake/
+    └── cortex/plans/
 ```
 
 ---
