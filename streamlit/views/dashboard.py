@@ -7,7 +7,7 @@ from utils.data import get_sensor_readings, get_zone_readings
 
 
 def render(facilities, sensors, audit_cases, escalations):
-    st.markdown("## GeoSense Monitoring Dashboard")
+    st.markdown("## GeoTech Monitoring Dashboard")
     st.caption("Predictive Tailings Dam Safety Monitoring — Real-time Operational View")
 
     # --- Year Filter ---

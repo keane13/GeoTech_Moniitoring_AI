@@ -2,7 +2,7 @@ import streamlit as st
 
 
 def render():
-    st.markdown("## GeoSense Monitoring AI")
+    st.markdown("## GeoTech Monitoring AI")
     st.markdown(
         "<p style='color:#94a3b8; font-size:1rem; margin-top:-8px;'>"
         "Predictive Tailings Dam Safety Monitoring System</p>",
@@ -16,7 +16,7 @@ def render():
         "<div style='background:#1e293b; border:1px solid #334155; border-radius:12px; padding:24px; margin-bottom:24px;'>"
         "<h4 style='margin:0 0 12px 0; color:#29B5E8;'>About</h4>"
         "<p style='color:#cbd5e1; margin:0; line-height:1.7;'>"
-        "GeoSense Monitoring AI is an AI-powered geotechnical monitoring platform designed for "
+        "GeoTech Monitoring AI is an AI-powered geotechnical monitoring platform designed for "
         "tailings dam safety at Freeport Indonesia mining operations. It combines real-time "
         "sensor data with agentic AI pipelines to detect drift patterns, assess risk, and "
         "orchestrate emergency responses, enabling engineers to act before failures occur."
