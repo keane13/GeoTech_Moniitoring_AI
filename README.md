@@ -78,7 +78,6 @@ what the agent is asked to do.
 
 - **Snowflake** — data warehouse, tables in `GEOTECH.CORE`
 - **Cortex Code (CoCo) CLI** — agent runtime; 3 custom Agent Skills + 1 governance hook + Slack MCP integration
-- **Astro.js** — showcase web UI, bridging to CoCo via the [Cortex Code Agent SDK](https://docs.snowflake.com/en/user-guide/cortex-code-agent-sdk/cortex-code-agent-sdk) (TypeScript)
 - **Streamlit in Snowflake** — operational dashboard
 
 ---
