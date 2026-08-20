@@ -1,0 +1,16 @@
+# Secrets
+mcp.json
+
+# Python
+__pycache__/
+*.pyc
+
+# Snowflake
+.snowflake/
+
+# OS
+.DS_Store
+Thumbs.db
+
+# Node
+node_modules/

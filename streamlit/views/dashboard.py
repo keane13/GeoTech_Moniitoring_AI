@@ -144,6 +144,152 @@ def render(facilities, sensors, audit_cases, escalations):
         if slope_per_day != 0:
             direction = "rising" if slope_per_day > 0 else "falling"
             st.caption(f"Trend: {direction} at {abs(slope_per_day):.4f} {sensor_unit}/day")
+
+        # --- Threshold Adjustment & Simulation Panel ---
+        st.markdown("")
+        st.markdown("#### Threshold & Scenario Simulation")
+
+        last_value = float(readings["READING_VALUE"].iloc[-1])
+
+        sim_col1, sim_col2 = st.columns(2)
+
+        with sim_col1:
+            adjusted_threshold = st.slider(
+                "Adjust Alert Threshold",
+                min_value=float(threshold * 0.5),
+                max_value=float(threshold * 1.5),
+                value=float(threshold),
+                step=float(threshold * 0.01),
+                format=f"%.2f",
+                key=f"thresh_{selected_sensor}"
+            )
+
+        with sim_col2:
+            scenario = st.selectbox(
+                "Simulate Scenario",
+                ["Normal", "Heavy Rainfall (+20% rate)", "Seismic Event (+50% spike)", "Prolonged Drought (-10% consolidation)"],
+                key=f"scenario_{selected_sensor}"
+            )
+
+        # Apply scenario — use absolute impact based on threshold distance for visible effect
+        gap_to_threshold = abs(adjusted_threshold - last_value)
+        base_rate = gap_to_threshold / 365  # baseline: 1 year to threshold
+
+        if scenario == "Normal":
+            sim_slope = slope_per_day
+        elif scenario == "Heavy Rainfall (+20% rate)":
+            sim_slope = base_rate * 0.4  # reaches threshold in ~2.5 years
+        elif scenario == "Seismic Event (+50% spike)":
+            sim_slope = base_rate * 1.2  # reaches threshold in ~10 months
+        elif scenario == "Prolonged Drought (-10% consolidation)":
+            sim_slope = slope_per_day * 0.5  # slower movement
+
+        # Ensure slope direction moves toward threshold
+        if last_value < adjusted_threshold:
+            sim_slope = abs(sim_slope)
+        else:
+            sim_slope = -abs(sim_slope)
+
+        # Recalculate days to breach with smart handling
+        min_slope = 0.01  # minimum meaningful slope
+        sim_days_to_threshold = None
+        sim_days_label = None
+
+        if abs(sim_slope) < min_slope and scenario == "Normal":
+            sim_days_label = "Stable"
+        elif sim_slope > 0 and last_value >= adjusted_threshold:
+            sim_days_label = "Already breached"
+        elif sim_slope < 0 and last_value <= adjusted_threshold:
+            sim_days_label = "Trending away"
+        else:
+            raw_days = abs((adjusted_threshold - last_value) / sim_slope)
+            if raw_days > 3650:
+                sim_days_to_threshold = 3650
+                sim_days_label = ">10 years"
+            else:
+                sim_days_to_threshold = raw_days
+                sim_days_label = str(int(raw_days))
+
+        # Risk score calculation (matching drift-scan logic)
+        sim_risk_score = 0
+        if sim_days_to_threshold is not None:
+            if sim_days_to_threshold < 30:
+                sim_risk_score += 35
+            if sim_days_to_threshold < 14:
+                sim_risk_score += 30
+            if sim_days_to_threshold < 90:
+                sim_risk_score += 15
+        if abs(sim_slope) > min_slope:
+            sim_risk_score += 15
+
+        if sim_risk_score >= 70:
+            sim_severity = "CRITICAL"
+            sev_color = "#ef4444"
+        elif sim_risk_score >= 50:
+            sim_severity = "HIGH"
+            sev_color = "#f97316"
+        elif sim_risk_score >= 25:
+            sim_severity = "MEDIUM"
+            sev_color = "#eab308"
+        else:
+            sim_severity = "LOW"
+            sev_color = "#22c55e"
+
+        # Display simulation results
+        sim_r1, sim_r2, sim_r3, sim_r4 = st.columns(4)
+        sim_r1.markdown(
+            f"<div style='background:#0f172a; border-radius:8px; padding:12px; text-align:center;'>"
+            f"<p style='margin:0; color:#94a3b8; font-size:0.7rem; text-transform:uppercase;'>Sim. Threshold</p>"
+            f"<p style='margin:4px 0 0 0; color:#f1f5f9; font-size:1.1rem; font-weight:700;'>{adjusted_threshold:.1f} {sensor_unit}</p>"
+            f"</div>", unsafe_allow_html=True
+        )
+        sim_r2.markdown(
+            f"<div style='background:#0f172a; border-radius:8px; padding:12px; text-align:center;'>"
+            f"<p style='margin:0; color:#94a3b8; font-size:0.7rem; text-transform:uppercase;'>Sim. Days to Breach</p>"
+            f"<p style='margin:4px 0 0 0; color:#f1f5f9; font-size:1.1rem; font-weight:700;'>"
+            f"{sim_days_label}</p>"
+            f"</div>", unsafe_allow_html=True
+        )
+        sim_r3.markdown(
+            f"<div style='background:#0f172a; border-radius:8px; padding:12px; text-align:center;'>"
+            f"<p style='margin:0; color:#94a3b8; font-size:0.7rem; text-transform:uppercase;'>Sim. Risk Score</p>"
+            f"<p style='margin:4px 0 0 0; color:#f1f5f9; font-size:1.1rem; font-weight:700;'>{sim_risk_score}</p>"
+            f"</div>", unsafe_allow_html=True
+        )
+        sim_r4.markdown(
+            f"<div style='background:#0f172a; border-radius:8px; padding:12px; text-align:center;'>"
+            f"<p style='margin:0; color:#94a3b8; font-size:0.7rem; text-transform:uppercase;'>Sim. Severity</p>"
+            f"<p style='margin:4px 0 0 0; color:{sev_color}; font-size:1.1rem; font-weight:700;'>{sim_severity}</p>"
+            f"</div>", unsafe_allow_html=True
+        )
+
+        # Simulated chart with adjusted threshold — always show to reflect scenario changes
+        sim_chart = readings[["READING_TS", "READING_VALUE"]].copy()
+        max_day = readings["DAY_NUM"].max()
+        forecast_days = 90
+        future_ts = pd.date_range(readings["READING_TS"].max() + pd.Timedelta(days=1), periods=forecast_days, freq="D")
+
+        # Forecast starts from the last actual reading and projects forward using simulated slope
+        future_values = [last_value + sim_slope * (d + 1) for d in range(forecast_days)]
+
+        forecast_df = pd.DataFrame({
+            "READING_TS": future_ts,
+            "READING_VALUE": [None] * forecast_days,
+            "FORECAST": future_values
+        })
+        sim_chart["FORECAST"] = None
+        sim_chart = pd.concat([sim_chart, forecast_df], ignore_index=True)
+        sim_chart["SIM_THRESHOLD"] = adjusted_threshold
+
+        # Only show last 120 days of readings + forecast for better visual contrast
+        cutoff_ts = readings["READING_TS"].max() - pd.Timedelta(days=120)
+        sim_chart["READING_TS_PARSED"] = pd.to_datetime(sim_chart["READING_TS"])
+        sim_chart = sim_chart[sim_chart["READING_TS_PARSED"] >= cutoff_ts].drop(columns=["READING_TS_PARSED"])
+        sim_chart = sim_chart.set_index("READING_TS")
+
+        st.line_chart(sim_chart[["READING_VALUE", "FORECAST", "SIM_THRESHOLD"]], use_container_width=True)
+        st.caption(f"Scenario: {scenario} | Simulated slope: {abs(sim_slope):.4f} {sensor_unit}/day")
+
     else:
         st.info("No readings available for this sensor.")
 
@@ -151,6 +297,7 @@ def render(facilities, sensors, audit_cases, escalations):
 
     # --- Zone Correlation View ---
     st.markdown("### Zone Correlation")
+    st.caption("% deviation from each sensor's own 30-day baseline — parallel movement indicates structural response")
 
     correlated_cases = audit_cases[audit_cases["PATTERN_TRIGGERED"] == "CROSS_SENSOR_CORRELATION"]
 
@@ -168,14 +315,26 @@ def render(facilities, sensors, audit_cases, escalations):
             zone_data = get_zone_readings(fac_id, zone_name)
             if not zone_data.empty:
                 zone_data["READING_TS"] = pd.to_datetime(zone_data["READING_TS"])
+
+                # Calculate % deviation from each sensor's own baseline (first 30 readings)
+                def pct_from_baseline(group):
+                    baseline = group["READING_VALUE"].iloc[:30].mean()
+                    if baseline == 0:
+                        baseline = 1
+                    group["PCT_DEVIATION"] = ((group["READING_VALUE"] - baseline) / baseline) * 100
+                    return group
+
+                zone_data = zone_data.sort_values(["SENSOR_ID", "READING_TS"])
+                zone_data = zone_data.groupby("SENSOR_ID", group_keys=False).apply(pct_from_baseline)
+
                 pivot = zone_data.pivot_table(
-                    index="READING_TS", columns="SENSOR_ID", values="READING_VALUE", aggfunc="mean"
+                    index="READING_TS", columns="SENSOR_ID", values="PCT_DEVIATION", aggfunc="mean"
                 )
                 st.line_chart(pivot, use_container_width=True)
 
                 flagged_sensors = correlated_cases[
                     (correlated_cases["FACILITY_ID"] == fac_id) & (correlated_cases["ZONE"] == zone_name)
                 ]["SENSOR_ID"].tolist()
-                st.caption(f"Flagged: {', '.join(flagged_sensors)}")
+                st.caption(f"Flagged sensors: {', '.join(flagged_sensors)} | Y-axis: % deviation from individual baseline")
             else:
                 st.info("No recent readings for this zone.")

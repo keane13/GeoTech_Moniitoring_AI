@@ -48,3 +48,65 @@ def get_zone_readings(facility_id, zone):
           AND r.reading_ts >= DATEADD('day', -90, CURRENT_DATE())
         ORDER BY r.reading_ts
     """).to_pandas()
+
+
+@st.cache_data(ttl=300)
+def get_personnel():
+    return session.sql("SELECT ENGINEER_ID, NAME, ROLE, FACILITY_ID FROM GEOTECH.CORE.PERSONNEL ORDER BY NAME").to_pandas()
+
+
+@st.cache_data(ttl=600)
+def get_detection_accuracy():
+    return session.sql("""
+        SELECT
+          CASE 
+            WHEN g.INJECTED_PATTERN != 'NONE' AND a.SENSOR_ID IS NOT NULL THEN 'TRUE_POSITIVE'
+            WHEN g.INJECTED_PATTERN = 'NONE' AND a.SENSOR_ID IS NOT NULL THEN 'FALSE_POSITIVE'
+            WHEN g.INJECTED_PATTERN != 'NONE' AND a.SENSOR_ID IS NULL THEN 'FALSE_NEGATIVE'
+            ELSE 'TRUE_NEGATIVE' 
+          END AS CONFUSION_CLASS,
+          COUNT(DISTINCT g.SENSOR_ID) AS SENSOR_COUNT
+        FROM GEOTECH.CORE.GROUND_TRUTH_LABELS g
+        LEFT JOIN (SELECT DISTINCT SENSOR_ID FROM GEOTECH.CORE.GEOTECH_AUDIT) a ON g.SENSOR_ID = a.SENSOR_ID
+        GROUP BY CONFUSION_CLASS
+    """).to_pandas()
+
+
+def approve_and_dispatch(case_id, engineer_name, action, approved_by):
+    session.sql(f"""
+        UPDATE GEOTECH.CORE.GEOTECH_AUDIT
+        SET FINAL_ACTION = '{action}',
+            ASSIGNED_ENGINEER = '{engineer_name}',
+            ACTION_TS = CURRENT_TIMESTAMP(),
+            APPROVAL_STATUS = 'APPROVED',
+            APPROVED_BY = '{approved_by}',
+            APPROVED_TS = CURRENT_TIMESTAMP()
+        WHERE CASE_ID = '{case_id}'
+    """).collect()
+    if action in ('SCHEDULE_INSPECTION', 'URGENT_INSPECTION'):
+        facility_id = session.sql(f"SELECT FACILITY_ID FROM GEOTECH.CORE.GEOTECH_AUDIT WHERE CASE_ID = '{case_id}'").collect()[0][0]
+        session.sql(f"""
+            INSERT INTO GEOTECH.CORE.INSPECTION_LOG (INSPECTION_ID, FACILITY_ID, INSPECTION_DATE, INSPECTOR_NAME, INSPECTION_TYPE, FINDINGS, FOLLOW_UP_REQUIRED)
+            VALUES (
+                'INS-' || TO_CHAR(CURRENT_TIMESTAMP(), 'YYYYMMDDHH24MISS'),
+                '{facility_id}',
+                CURRENT_DATE(),
+                '{engineer_name}',
+                'TRIGGERED',
+                'Auto-dispatched from case {case_id} — {action}',
+                TRUE
+            )
+        """).collect()
+    get_audit_cases.clear()
+
+
+def reject_case(case_id, approved_by):
+    session.sql(f"""
+        UPDATE GEOTECH.CORE.GEOTECH_AUDIT
+        SET APPROVAL_STATUS = 'REJECTED',
+            APPROVED_BY = '{approved_by}',
+            APPROVED_TS = CURRENT_TIMESTAMP(),
+            FINAL_ACTION = 'REJECTED'
+        WHERE CASE_ID = '{case_id}'
+    """).collect()
+    get_audit_cases.clear()

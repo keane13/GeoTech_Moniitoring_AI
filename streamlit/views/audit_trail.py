@@ -1,5 +1,7 @@
 import streamlit as st
 
+from utils.data import approve_and_dispatch, reject_case, get_personnel
+
 
 def render(facilities, audit_cases):
     st.markdown("## Case Audit Trail")
@@ -98,5 +100,60 @@ def render(facilities, audit_cases):
                     )
                 else:
                     st.info("No LLM rationale available — run risk synthesis pipeline first.")
+
+                # --- Human-in-the-Loop Action Buttons ---
+                approval_status = case.get("APPROVAL_STATUS", None)
+                recommended = case.get("RECOMMENDED_ACTION", None)
+
+                if approval_status == "APPROVED":
+                    st.markdown(
+                        f"<div style='background:#065f4620; border:1px solid #065f46; border-radius:8px; padding:10px 14px; margin-top:12px;'>"
+                        f"<span style='color:#6ee7b7; font-weight:600;'>Approved</span>"
+                        f"<span style='color:#94a3b8; font-size:0.8rem; margin-left:12px;'>"
+                        f"by {case.get('APPROVED_BY', '—')} at {str(case.get('APPROVED_TS', ''))[:19]}</span></div>",
+                        unsafe_allow_html=True
+                    )
+                elif approval_status == "REJECTED":
+                    st.markdown(
+                        f"<div style='background:#7f1d1d20; border:1px solid #7f1d1d; border-radius:8px; padding:10px 14px; margin-top:12px;'>"
+                        f"<span style='color:#fca5a5; font-weight:600;'>Rejected</span>"
+                        f"<span style='color:#94a3b8; font-size:0.8rem; margin-left:12px;'>"
+                        f"by {case.get('APPROVED_BY', '—')} at {str(case.get('APPROVED_TS', ''))[:19]}</span></div>",
+                        unsafe_allow_html=True
+                    )
+                elif recommended and str(recommended) != "None":
+                    st.markdown("")
+                    st.markdown(
+                        f"<div style='background:#1e293b; border:1px solid #334155; border-radius:8px; padding:14px; margin-top:8px;'>"
+                        f"<p style='margin:0 0 8px 0; color:#fbbf24; font-size:0.75rem; font-weight:600; "
+                        f"text-transform:uppercase; letter-spacing:0.05em;'>Pending Approval</p>"
+                        f"<p style='margin:0; color:#f1f5f9; font-size:0.9rem;'>Recommended: "
+                        f"<strong>{str(recommended).replace('_', ' ').title()}</strong></p></div>",
+                        unsafe_allow_html=True
+                    )
+
+                    personnel = get_personnel()
+                    engineer_options = personnel["NAME"].tolist()
+                    case_key = case["CASE_ID"]
+
+                    col_eng, col_approve, col_reject = st.columns([3, 1, 1])
+                    with col_eng:
+                        selected_engineer = st.selectbox(
+                            "Assign Engineer",
+                            engineer_options,
+                            key=f"eng_{case_key}",
+                            label_visibility="collapsed"
+                        )
+                    with col_approve:
+                        if st.button("Approve & Dispatch", key=f"approve_{case_key}", type="primary"):
+                            approve_and_dispatch(case_key, selected_engineer, recommended, selected_engineer)
+                            st.success(f"Dispatched to {selected_engineer}")
+                            st.experimental_rerun()
+                    with col_reject:
+                        if st.button("Reject", key=f"reject_{case_key}"):
+                            reject_case(case_key, selected_engineer)
+                            st.warning("Case rejected")
+                            st.experimental_rerun()
+
     else:
         st.info("No cases match the current filters.")
