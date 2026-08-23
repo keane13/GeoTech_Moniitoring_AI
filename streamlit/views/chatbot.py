@@ -14,7 +14,7 @@ def _rerun():
     if hasattr(st, "rerun"):
         st.rerun()
     else:
-        st.experimental_rerun()
+        st.rerun()
 
 
 # =============================================================================

@@ -148,12 +148,12 @@ def render(facilities, audit_cases):
                         if st.button("Approve & Dispatch", key=f"approve_{case_key}", type="primary"):
                             approve_and_dispatch(case_key, selected_engineer, recommended, selected_engineer)
                             st.success(f"Dispatched to {selected_engineer}")
-                            st.experimental_rerun()
+                            st.rerun()
                     with col_reject:
                         if st.button("Reject", key=f"reject_{case_key}"):
                             reject_case(case_key, selected_engineer)
                             st.warning("Case rejected")
-                            st.experimental_rerun()
+                            st.rerun()
 
     else:
         st.info("No cases match the current filters.")
