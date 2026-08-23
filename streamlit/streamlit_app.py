@@ -14,17 +14,18 @@ inject_css()
 
 from utils.data import session, connection_error
 
+# --- Load data ---
+from utils.data import get_facilities, get_sensors, get_audit_cases, get_escalations_30d
+
 if session is None:
     st.error(f"Failed to connect to Snowflake backend.\\n\\n**Diagnostic Details:**\\n{connection_error}")
     st.info("If running in Streamlit in Snowflake (SiS), this usually means the warehouse is suspended or the execution role lacks privileges.")
-    st.stop()
-
-# --- Load data ---
-from utils.data import get_facilities, get_sensors, get_audit_cases, get_escalations_30d
-facilities = get_facilities()
-sensors = get_sensors()
-audit_cases = get_audit_cases()
-escalations = get_escalations_30d()
+    facilities, sensors, audit_cases, escalations = None, None, None, None
+else:
+    facilities = get_facilities()
+    sensors = get_sensors()
+    audit_cases = get_audit_cases()
+    escalations = get_escalations_30d()
 
 # --- Sidebar ---
 st.sidebar.markdown(

@@ -48,57 +48,83 @@ except Exception as e_sis:
         connection_error = str(e_local)
 
 
+import pandas as pd
+
 def get_facilities():
-    return session.sql("SELECT * FROM GEOTECH.CORE.FACILITIES ORDER BY facility_id").to_pandas()
+    try:
+        return session.sql("SELECT * FROM GEOTECH.CORE.FACILITIES ORDER BY facility_id").to_pandas()
+    except Exception:
+        return pd.DataFrame(columns=["FACILITY_ID", "FACILITY_NAME", "REGION", "LATITUDE", "LONGITUDE", "RISK_LEVEL", "LAST_INSPECTION"])
 
 def get_sensors():
-    return session.sql("SELECT * FROM GEOTECH.CORE.SENSORS ORDER BY sensor_id").to_pandas()
+    try:
+        return session.sql("SELECT * FROM GEOTECH.CORE.SENSORS ORDER BY sensor_id").to_pandas()
+    except Exception:
+        return pd.DataFrame(columns=["SENSOR_ID", "FACILITY_ID", "ZONE", "SENSOR_TYPE", "INSTALLATION_DATE", "STATUS"])
 
 def get_audit_cases():
-    return session.sql("SELECT * FROM GEOTECH.CORE.GEOTECH_AUDIT ORDER BY risk_score DESC").to_pandas()
+    try:
+        return session.sql("SELECT * FROM GEOTECH.CORE.GEOTECH_AUDIT ORDER BY risk_score DESC").to_pandas()
+    except Exception:
+        return pd.DataFrame(columns=["CASE_ID", "SENSOR_ID", "DETECTED_PATTERN", "RISK_SCORE", "SEVERITY", "RECOMMENDED_ACTION", "FINAL_ACTION", "APPROVAL_STATUS", "DETECTED_TS"])
 
 def get_escalations_30d():
-    return session.sql("""
-        SELECT * FROM GEOTECH.CORE.EMERGENCY_ESCALATION_LOG
-        WHERE escalation_ts >= DATEADD('day', -30, CURRENT_TIMESTAMP())
-    """).to_pandas()
+    try:
+        return session.sql("""
+            SELECT * FROM GEOTECH.CORE.EMERGENCY_ESCALATION_LOG
+            WHERE escalation_ts >= DATEADD('day', -30, CURRENT_TIMESTAMP())
+        """).to_pandas()
+    except Exception:
+        return pd.DataFrame(columns=["ESCALATION_ID", "CASE_ID", "ESCALATION_LEVEL", "ESCALATION_TS", "RESOLVED"])
 
 def get_sensor_readings(sensor_id):
-    return session.sql(f"""
-        SELECT reading_ts, reading_value, data_quality_flag
-        FROM GEOTECH.CORE.SENSOR_READINGS
-        WHERE sensor_id = '{sensor_id}' AND data_quality_flag = 'NORMAL'
-        ORDER BY reading_ts
-    """).to_pandas()
+    try:
+        return session.sql(f"""
+            SELECT reading_ts, reading_value, data_quality_flag
+            FROM GEOTECH.CORE.SENSOR_READINGS
+            WHERE sensor_id = '{sensor_id}' AND data_quality_flag = 'NORMAL'
+            ORDER BY reading_ts
+        """).to_pandas()
+    except Exception:
+        return pd.DataFrame(columns=["READING_TS", "READING_VALUE", "DATA_QUALITY_FLAG"])
 
 def get_zone_readings(facility_id, zone):
-    return session.sql(f"""
-        SELECT r.sensor_id, r.reading_ts, r.reading_value
-        FROM GEOTECH.CORE.SENSOR_READINGS r
-        JOIN GEOTECH.CORE.SENSORS s ON r.sensor_id = s.sensor_id
-        WHERE s.facility_id = '{facility_id}' AND s.zone = '{zone}'
-          AND r.data_quality_flag = 'NORMAL'
-          AND r.reading_ts >= DATEADD('day', -90, CURRENT_DATE())
-        ORDER BY r.reading_ts
-    """).to_pandas()
+    try:
+        return session.sql(f"""
+            SELECT r.sensor_id, r.reading_ts, r.reading_value
+            FROM GEOTECH.CORE.SENSOR_READINGS r
+            JOIN GEOTECH.CORE.SENSORS s ON r.sensor_id = s.sensor_id
+            WHERE s.facility_id = '{facility_id}' AND s.zone = '{zone}'
+              AND r.data_quality_flag = 'NORMAL'
+              AND r.reading_ts >= DATEADD('day', -90, CURRENT_DATE())
+            ORDER BY r.reading_ts
+        """).to_pandas()
+    except Exception:
+        return pd.DataFrame(columns=["SENSOR_ID", "READING_TS", "READING_VALUE"])
 
 def get_personnel():
-    return session.sql("SELECT ENGINEER_ID, NAME, ROLE, FACILITY_ID FROM GEOTECH.CORE.PERSONNEL ORDER BY NAME").to_pandas()
+    try:
+        return session.sql("SELECT ENGINEER_ID, NAME, ROLE, FACILITY_ID FROM GEOTECH.CORE.PERSONNEL ORDER BY NAME").to_pandas()
+    except Exception:
+        return pd.DataFrame(columns=["ENGINEER_ID", "NAME", "ROLE", "FACILITY_ID"])
 
 def get_detection_accuracy():
-    return session.sql("""
-        SELECT
-          CASE 
-            WHEN g.INJECTED_PATTERN != 'NONE' AND a.SENSOR_ID IS NOT NULL THEN 'TRUE_POSITIVE'
-            WHEN g.INJECTED_PATTERN = 'NONE' AND a.SENSOR_ID IS NOT NULL THEN 'FALSE_POSITIVE'
-            WHEN g.INJECTED_PATTERN != 'NONE' AND a.SENSOR_ID IS NULL THEN 'FALSE_NEGATIVE'
-            ELSE 'TRUE_NEGATIVE' 
-          END AS CONFUSION_CLASS,
-          COUNT(DISTINCT g.SENSOR_ID) AS SENSOR_COUNT
-        FROM GEOTECH.CORE.GROUND_TRUTH_LABELS g
-        LEFT JOIN (SELECT DISTINCT SENSOR_ID FROM GEOTECH.CORE.GEOTECH_AUDIT) a ON g.SENSOR_ID = a.SENSOR_ID
-        GROUP BY CONFUSION_CLASS
-    """).to_pandas()
+    try:
+        return session.sql("""
+            SELECT
+              CASE 
+                WHEN g.INJECTED_PATTERN != 'NONE' AND a.SENSOR_ID IS NOT NULL THEN 'TRUE_POSITIVE'
+                WHEN g.INJECTED_PATTERN = 'NONE' AND a.SENSOR_ID IS NOT NULL THEN 'FALSE_POSITIVE'
+                WHEN g.INJECTED_PATTERN != 'NONE' AND a.SENSOR_ID IS NULL THEN 'FALSE_NEGATIVE'
+                ELSE 'TRUE_NEGATIVE' 
+              END AS CONFUSION_CLASS,
+              COUNT(DISTINCT g.SENSOR_ID) AS SENSOR_COUNT
+            FROM GEOTECH.CORE.GROUND_TRUTH_LABELS g
+            LEFT JOIN (SELECT DISTINCT SENSOR_ID FROM GEOTECH.CORE.GEOTECH_AUDIT) a ON g.SENSOR_ID = a.SENSOR_ID
+            GROUP BY CONFUSION_CLASS
+        """).to_pandas()
+    except Exception:
+        return pd.DataFrame(columns=["CONFUSION_CLASS", "SENSOR_COUNT"])
 
 def approve_and_dispatch(case_id, engineer_name, action, approved_by):
     session.sql(f"""
