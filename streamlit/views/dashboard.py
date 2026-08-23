@@ -171,29 +171,40 @@ def render(facilities, sensors, audit_cases, escalations):
         with sim_col2:
             scenario = st.selectbox(
                 "Simulate Scenario",
-                ["Normal (current trend)", "Heavy Rainfall (+20% drift rate)", "Seismic Event (+50% step spike)", "Prolonged Drought (−30% reduced rate)"],
+                [
+                    "Normal (current trend)",
+                    "Heavy Rainfall (+80% accelerated drift)",
+                    "Seismic Event (+200% step spike)",
+                    "Prolonged Drought (−50% reduced rate)",
+                    "Extreme Event (Critical Breach Imminent)",
+                ],
                 key=f"scenario_{selected_sensor}"
             )
 
         # --- Compute gap and reference rate ---
         gap_to_threshold = adjusted_threshold - last_value  # signed: positive = sensor below threshold
 
-        # Reference daily rate: use observed slope direction toward threshold,
-        # fallback to gap/365 so the scenario always produces a visible number.
+        # Reference daily rate: use observed slope direction toward threshold.
+        # Floor = gap/90 so there is always a visible baseline (breach within ~3 months at Normal).
+        # This ensures scenarios produce dramatically different, readable results.
+        floor_rate = abs(gap_to_threshold) / 90.0 if abs(gap_to_threshold) > 0 else 0.01
         if obs_slope_abs is not None:
-            ref_rate = obs_slope_abs  # units/day from historical regression
+            ref_rate = max(obs_slope_abs, floor_rate)  # use whichever is higher for realism
         else:
-            ref_rate = abs(gap_to_threshold) / 365.0  # baseline: 1 year to breach
+            ref_rate = floor_rate  # baseline: 90 days to breach
 
-        # --- Scenario multipliers (geotechnically grounded) ---
-        # Heavy Rainfall: 20% faster consolidation/pore-pressure build-up → ×1.20
-        # Seismic Event: 50% step-spike in displacement/pore-pressure → ×1.50
-        # Prolonged Drought: 30% slower settlement due to lower moisture → ×0.70
+        # --- Scenario multipliers (geotechnically grounded & demo-impactful) ---
+        # Normal:          baseline drift rate (breaches in ~3 months worst case)
+        # Heavy Rainfall:  pore-pressure buildup accelerates settlement ×1.80 → ~6 weeks breach
+        # Seismic Event:   sudden displacement spike ×3.00 → ~3-4 weeks breach (CRITICAL)
+        # Prolonged Drought: moisture loss slows consolidation ×0.50 → breach >6 months
+        # Extreme Event:   compounding hazard (heavy rain + seismic) ×5.00 → <2 weeks (CRITICAL)
         scenario_multiplier = {
             "Normal (current trend)": 1.00,
-            "Heavy Rainfall (+20% drift rate)": 1.20,
-            "Seismic Event (+50% step spike)": 1.50,
-            "Prolonged Drought (−30% reduced rate)": 0.70,
+            "Heavy Rainfall (+80% accelerated drift)": 1.80,
+            "Seismic Event (+200% step spike)": 3.00,
+            "Prolonged Drought (−50% reduced rate)": 0.50,
+            "Extreme Event (Critical Breach Imminent)": 5.00,
         }[scenario]
 
         sim_rate = ref_rate * scenario_multiplier  # units/day toward threshold
@@ -244,8 +255,12 @@ def render(facilities, sensors, audit_cases, escalations):
                 sim_risk_score += 10   # longer-term risk
         if sim_rate > MIN_MEANINGFUL_SLOPE:
             sim_risk_score += 15  # active drift bonus
-        if scenario_multiplier >= 1.5:
-            sim_risk_score += 10  # extreme event bonus
+        if scenario_multiplier >= 1.8:
+            sim_risk_score += 10  # elevated scenario bonus
+        if scenario_multiplier >= 3.0:
+            sim_risk_score += 15  # severe scenario bonus
+        if scenario_multiplier >= 5.0:
+            sim_risk_score += 20  # extreme event bonus
 
         sim_risk_score = min(sim_risk_score, 100)  # cap at 100
 
@@ -321,10 +336,13 @@ def render(facilities, sensors, audit_cases, escalations):
         sim_chart = sim_chart.set_index("READING_TS")
 
         st.line_chart(sim_chart[["READING_VALUE", "FORECAST", "SIM_THRESHOLD"]], use_container_width=True)
-        st.caption(
-            f"Scenario: **{scenario}** · Drift rate: {sim_rate:.5f} {sensor_unit}/day · "
-            f"Multiplier: ×{scenario_multiplier:.2f} · Est. breach: {sim_days_label}"
-        )
+        # Colour-coded scenario warning banner
+        if scenario_multiplier >= 3.0:
+            st.error(f"⚠️ **{scenario}** — Multiplier ×{scenario_multiplier:.1f} · Drift: {sim_rate:.4f} {sensor_unit}/day · Est. breach: **{sim_days_label}**")
+        elif scenario_multiplier >= 1.5:
+            st.warning(f"⚡ **{scenario}** — Multiplier ×{scenario_multiplier:.1f} · Drift: {sim_rate:.4f} {sensor_unit}/day · Est. breach: **{sim_days_label}**")
+        else:
+            st.caption(f"Scenario: **{scenario}** · Multiplier ×{scenario_multiplier:.1f} · Drift: {sim_rate:.4f} {sensor_unit}/day · Est. breach: {sim_days_label}")
 
     else:
         st.info("No readings available for this sensor.")
