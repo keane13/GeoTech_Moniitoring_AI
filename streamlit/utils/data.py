@@ -4,15 +4,6 @@ import streamlit as st
 # ---------------------------------------------------------------------------
 # Dual-mode session: Snowflake SiS (production) vs local dev
 # ---------------------------------------------------------------------------
-
-# Disable caching globally to avoid Streamlit hash errors with Snowpark session in older SiS versions
-def dummy_cache(*args, **kwargs):
-    def decorator(f):
-        f.clear = lambda: None  # Mock the clear() method
-        return f
-    return decorator
-st.cache_data = dummy_cache
-
 session = None
 connection_error = None
 
@@ -57,30 +48,21 @@ except Exception as e_sis:
         connection_error = str(e_local)
 
 
-@st.cache_data(ttl=300)
 def get_facilities():
     return session.sql("SELECT * FROM GEOTECH.CORE.FACILITIES ORDER BY facility_id").to_pandas()
 
-
-@st.cache_data(ttl=300)
 def get_sensors():
     return session.sql("SELECT * FROM GEOTECH.CORE.SENSORS ORDER BY sensor_id").to_pandas()
 
-
-@st.cache_data(ttl=300)
 def get_audit_cases():
     return session.sql("SELECT * FROM GEOTECH.CORE.GEOTECH_AUDIT ORDER BY risk_score DESC").to_pandas()
 
-
-@st.cache_data(ttl=300)
 def get_escalations_30d():
     return session.sql("""
         SELECT * FROM GEOTECH.CORE.EMERGENCY_ESCALATION_LOG
         WHERE escalation_ts >= DATEADD('day', -30, CURRENT_TIMESTAMP())
     """).to_pandas()
 
-
-@st.cache_data(ttl=60)
 def get_sensor_readings(sensor_id):
     return session.sql(f"""
         SELECT reading_ts, reading_value, data_quality_flag
@@ -89,8 +71,6 @@ def get_sensor_readings(sensor_id):
         ORDER BY reading_ts
     """).to_pandas()
 
-
-@st.cache_data(ttl=60)
 def get_zone_readings(facility_id, zone):
     return session.sql(f"""
         SELECT r.sensor_id, r.reading_ts, r.reading_value
@@ -102,13 +82,9 @@ def get_zone_readings(facility_id, zone):
         ORDER BY r.reading_ts
     """).to_pandas()
 
-
-@st.cache_data(ttl=300)
 def get_personnel():
     return session.sql("SELECT ENGINEER_ID, NAME, ROLE, FACILITY_ID FROM GEOTECH.CORE.PERSONNEL ORDER BY NAME").to_pandas()
 
-
-@st.cache_data(ttl=600)
 def get_detection_accuracy():
     return session.sql("""
         SELECT
@@ -123,7 +99,6 @@ def get_detection_accuracy():
         LEFT JOIN (SELECT DISTINCT SENSOR_ID FROM GEOTECH.CORE.GEOTECH_AUDIT) a ON g.SENSOR_ID = a.SENSOR_ID
         GROUP BY CONFUSION_CLASS
     """).to_pandas()
-
 
 def approve_and_dispatch(case_id, engineer_name, action, approved_by):
     session.sql(f"""
@@ -150,8 +125,6 @@ def approve_and_dispatch(case_id, engineer_name, action, approved_by):
                 TRUE
             )
         """).collect()
-    get_audit_cases.clear()
-
 
 def reject_case(case_id, approved_by):
     session.sql(f"""
@@ -162,4 +135,3 @@ def reject_case(case_id, approved_by):
             FINAL_ACTION = 'REJECTED'
         WHERE CASE_ID = '{case_id}'
     """).collect()
-    get_audit_cases.clear()
