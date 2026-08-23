@@ -4,6 +4,15 @@ import streamlit as st
 # ---------------------------------------------------------------------------
 # Dual-mode session: Snowflake SiS (production) vs local dev
 # ---------------------------------------------------------------------------
+
+# Disable caching globally to avoid Streamlit hash errors with Snowpark session in older SiS versions
+def dummy_cache(*args, **kwargs):
+    def decorator(f):
+        f.clear = lambda: None  # Mock the clear() method
+        return f
+    return decorator
+st.cache_data = dummy_cache
+
 session = None
 connection_error = None
 
@@ -14,18 +23,22 @@ try:
 except Exception as e_sis:
     # 2. Running locally (or SiS failed) — try loading credentials
     try:
-        try:
-            from dotenv import load_dotenv
-            base_dir = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
-            env_path = os.path.join(base_dir, ".env")
-            env_example_path = os.path.join(base_dir, ".env.example")
-            if os.path.exists(env_path):
-                load_dotenv(dotenv_path=env_path)
-            elif os.path.exists(env_example_path):
-                load_dotenv(dotenv_path=env_example_path)
-        except ImportError:
-            pass  # python-dotenv not installed; fall back to OS env vars
+        base_dir = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
+        env_path = os.path.join(base_dir, ".env")
+        env_example_path = os.path.join(base_dir, ".env.example")
+        
+        target_env = env_path if os.path.exists(env_path) else (env_example_path if os.path.exists(env_example_path) else None)
+        if target_env:
+            with open(target_env, "r") as f:
+                for line in f:
+                    line = line.strip()
+                    if line and not line.startswith("#") and "=" in line:
+                        k, v = line.split("=", 1)
+                        os.environ[k.strip()] = v.strip()
+    except Exception:
+        pass  # ignore file parsing errors
 
+    try:
         account = os.environ.get("SNOWFLAKE_ACCOUNT")
         if not account:
             raise ValueError(f"SNOWFLAKE_ACCOUNT not found in environment variables. SiS Error was: {e_sis}")
@@ -40,24 +53,8 @@ except Exception as e_sis:
             "database":  os.environ.get("SNOWFLAKE_DATABASE", "GEOTECH"),
             "schema":    os.environ.get("SNOWFLAKE_SCHEMA", "CORE"),
         }).create()
-
-        # Disable caching locally to avoid Streamlit hash errors with Snowpark session
-        def dummy_cache(*args, **kwargs):
-            def decorator(f):
-                f.clear = lambda: None  # Mock the clear() method
-                return f
-            return decorator
-        st.cache_data = dummy_cache
-
     except Exception as e_local:
         connection_error = str(e_local)
-
-# If we failed to get a session, provide a dummy to prevent NameError, 
-# and show the error in the UI.
-if session is None:
-    st.error(f"Failed to connect to Snowflake.\\nError: {connection_error}")
-    st.stop()
-
 
 
 @st.cache_data(ttl=300)
