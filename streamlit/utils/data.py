@@ -1,7 +1,45 @@
+import os
 import streamlit as st
-from snowflake.snowpark.context import get_active_session
 
-session = get_active_session()
+# ---------------------------------------------------------------------------
+# Dual-mode session: Snowflake SiS (production) vs local dev
+# ---------------------------------------------------------------------------
+try:
+    # Running inside Streamlit in Snowflake — use the injected session
+    from snowflake.snowpark.context import get_active_session
+    session = get_active_session()
+except Exception:
+    # Running locally — load credentials from .env file (or .env.example as fallback)
+    try:
+        from dotenv import load_dotenv
+        base_dir = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
+        env_path = os.path.join(base_dir, ".env")
+        env_example_path = os.path.join(base_dir, ".env.example")
+        if os.path.exists(env_path):
+            load_dotenv(dotenv_path=env_path)
+        elif os.path.exists(env_example_path):
+            load_dotenv(dotenv_path=env_example_path)
+    except ImportError:
+        pass  # python-dotenv not installed; fall back to OS env vars
+
+    from snowflake.snowpark import Session
+    session = Session.builder.configs({
+        "account":   os.environ["SNOWFLAKE_ACCOUNT"],
+        "user":      os.environ["SNOWFLAKE_USER"],
+        "password":  os.environ["SNOWFLAKE_PASSWORD"],
+        "role":      os.environ.get("SNOWFLAKE_ROLE", ""),
+        "warehouse": os.environ["SNOWFLAKE_WAREHOUSE"],
+        "database":  os.environ.get("SNOWFLAKE_DATABASE", "GEOTECH"),
+        "schema":    os.environ.get("SNOWFLAKE_SCHEMA", "CORE"),
+    }).create()
+
+    # Disable caching locally to avoid Streamlit hash errors with Snowpark session
+    def dummy_cache(*args, **kwargs):
+        def decorator(f):
+            f.clear = lambda: None  # Mock the clear() method
+            return f
+        return decorator
+    st.cache_data = dummy_cache
 
 
 @st.cache_data(ttl=300)

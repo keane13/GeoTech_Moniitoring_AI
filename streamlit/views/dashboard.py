@@ -148,8 +148,12 @@ def render(facilities, sensors, audit_cases, escalations):
         # --- Threshold Adjustment & Simulation Panel ---
         st.markdown("")
         st.markdown("#### Threshold & Scenario Simulation")
+        st.caption("Adjust the alert threshold and apply geotechnical stress scenarios to project sensor breach timing.")
 
         last_value = float(readings["READING_VALUE"].iloc[-1])
+        # Reference drift: use observed slope if meaningful, else use 1-year-to-threshold as baseline
+        MIN_MEANINGFUL_SLOPE = 1e-6
+        obs_slope_abs = abs(slope_per_day) if abs(slope_per_day) > MIN_MEANINGFUL_SLOPE else None
 
         sim_col1, sim_col2 = st.columns(2)
 
@@ -159,68 +163,91 @@ def render(facilities, sensors, audit_cases, escalations):
                 min_value=float(threshold * 0.5),
                 max_value=float(threshold * 1.5),
                 value=float(threshold),
-                step=float(threshold * 0.01),
-                format=f"%.2f",
+                step=float(max(threshold * 0.01, 0.001)),
+                format="%.3f",
                 key=f"thresh_{selected_sensor}"
             )
 
         with sim_col2:
             scenario = st.selectbox(
                 "Simulate Scenario",
-                ["Normal", "Heavy Rainfall (+20% rate)", "Seismic Event (+50% spike)", "Prolonged Drought (-10% consolidation)"],
+                ["Normal (current trend)", "Heavy Rainfall (+20% drift rate)", "Seismic Event (+50% step spike)", "Prolonged Drought (−30% reduced rate)"],
                 key=f"scenario_{selected_sensor}"
             )
 
-        # Apply scenario — use absolute impact based on threshold distance for visible effect
-        gap_to_threshold = abs(adjusted_threshold - last_value)
-        base_rate = gap_to_threshold / 365  # baseline: 1 year to threshold
+        # --- Compute gap and reference rate ---
+        gap_to_threshold = adjusted_threshold - last_value  # signed: positive = sensor below threshold
 
-        if scenario == "Normal":
-            sim_slope = slope_per_day
-        elif scenario == "Heavy Rainfall (+20% rate)":
-            sim_slope = base_rate * 0.4  # reaches threshold in ~2.5 years
-        elif scenario == "Seismic Event (+50% spike)":
-            sim_slope = base_rate * 1.2  # reaches threshold in ~10 months
-        elif scenario == "Prolonged Drought (-10% consolidation)":
-            sim_slope = slope_per_day * 0.5  # slower movement
-
-        # Ensure slope direction moves toward threshold
-        if last_value < adjusted_threshold:
-            sim_slope = abs(sim_slope)
+        # Reference daily rate: use observed slope direction toward threshold,
+        # fallback to gap/365 so the scenario always produces a visible number.
+        if obs_slope_abs is not None:
+            ref_rate = obs_slope_abs  # units/day from historical regression
         else:
-            sim_slope = -abs(sim_slope)
+            ref_rate = abs(gap_to_threshold) / 365.0  # baseline: 1 year to breach
 
-        # Recalculate days to breach with smart handling
-        min_slope = 0.01  # minimum meaningful slope
+        # --- Scenario multipliers (geotechnically grounded) ---
+        # Heavy Rainfall: 20% faster consolidation/pore-pressure build-up → ×1.20
+        # Seismic Event: 50% step-spike in displacement/pore-pressure → ×1.50
+        # Prolonged Drought: 30% slower settlement due to lower moisture → ×0.70
+        scenario_multiplier = {
+            "Normal (current trend)": 1.00,
+            "Heavy Rainfall (+20% drift rate)": 1.20,
+            "Seismic Event (+50% step spike)": 1.50,
+            "Prolonged Drought (−30% reduced rate)": 0.70,
+        }[scenario]
+
+        sim_rate = ref_rate * scenario_multiplier  # units/day toward threshold
+
+        # Direction: always project toward the threshold
+        if gap_to_threshold >= 0:
+            sim_slope = sim_rate   # sensor below threshold → positive drift needed
+        else:
+            sim_slope = -sim_rate  # sensor already above threshold → negative drift
+
+        # --- Days to breach ---
         sim_days_to_threshold = None
         sim_days_label = None
 
-        if abs(sim_slope) < min_slope and scenario == "Normal":
-            sim_days_label = "Stable"
-        elif sim_slope > 0 and last_value >= adjusted_threshold:
+        if abs(gap_to_threshold) < 1e-9:
+            sim_days_label = "Already at threshold"
+        elif gap_to_threshold < 0:
+            # sensor already above threshold
             sim_days_label = "Already breached"
-        elif sim_slope < 0 and last_value <= adjusted_threshold:
-            sim_days_label = "Trending away"
+        elif sim_rate < MIN_MEANINGFUL_SLOPE:
+            sim_days_label = "Stable (no trend)"
         else:
-            raw_days = abs((adjusted_threshold - last_value) / sim_slope)
+            raw_days = abs(gap_to_threshold) / sim_rate
             if raw_days > 3650:
                 sim_days_to_threshold = 3650
-                sim_days_label = ">10 years"
+                sim_days_label = f"> 10 years"
             else:
                 sim_days_to_threshold = raw_days
-                sim_days_label = str(int(raw_days))
+                years = int(raw_days // 365)
+                months = int((raw_days % 365) // 30)
+                if years > 0:
+                    sim_days_label = f"{int(raw_days)} days (~{years}y {months}m)"
+                elif months > 0:
+                    sim_days_label = f"{int(raw_days)} days (~{months} mo)"
+                else:
+                    sim_days_label = f"{int(raw_days)} days"
 
-        # Risk score calculation (matching drift-scan logic)
+        # --- Risk score (mirrors drift-scan pipeline logic) ---
         sim_risk_score = 0
         if sim_days_to_threshold is not None:
-            if sim_days_to_threshold < 30:
-                sim_risk_score += 35
-            if sim_days_to_threshold < 14:
-                sim_risk_score += 30
-            if sim_days_to_threshold < 90:
-                sim_risk_score += 15
-        if abs(sim_slope) > min_slope:
-            sim_risk_score += 15
+            if sim_days_to_threshold <= 14:
+                sim_risk_score += 65   # <2 weeks: critical urgency
+            elif sim_days_to_threshold <= 30:
+                sim_risk_score += 50   # <1 month: high urgency
+            elif sim_days_to_threshold <= 90:
+                sim_risk_score += 30   # <3 months: elevated
+            else:
+                sim_risk_score += 10   # longer-term risk
+        if sim_rate > MIN_MEANINGFUL_SLOPE:
+            sim_risk_score += 15  # active drift bonus
+        if scenario_multiplier >= 1.5:
+            sim_risk_score += 10  # extreme event bonus
+
+        sim_risk_score = min(sim_risk_score, 100)  # cap at 100
 
         if sim_risk_score >= 70:
             sim_severity = "CRITICAL"
@@ -235,38 +262,44 @@ def render(facilities, sensors, audit_cases, escalations):
             sim_severity = "LOW"
             sev_color = "#22c55e"
 
-        # Display simulation results
-        sim_r1, sim_r2, sim_r3, sim_r4 = st.columns(4)
+        # --- Display simulation results ---
+        sim_r1, sim_r2, sim_r3, sim_r4, sim_r5 = st.columns(5)
         sim_r1.markdown(
             f"<div style='background:#0f172a; border-radius:8px; padding:12px; text-align:center;'>"
             f"<p style='margin:0; color:#94a3b8; font-size:0.7rem; text-transform:uppercase;'>Sim. Threshold</p>"
-            f"<p style='margin:4px 0 0 0; color:#f1f5f9; font-size:1.1rem; font-weight:700;'>{adjusted_threshold:.1f} {sensor_unit}</p>"
+            f"<p style='margin:4px 0 0 0; color:#f1f5f9; font-size:1.0rem; font-weight:700;'>{adjusted_threshold:.3f} {sensor_unit}</p>"
             f"</div>", unsafe_allow_html=True
         )
         sim_r2.markdown(
             f"<div style='background:#0f172a; border-radius:8px; padding:12px; text-align:center;'>"
-            f"<p style='margin:0; color:#94a3b8; font-size:0.7rem; text-transform:uppercase;'>Sim. Days to Breach</p>"
-            f"<p style='margin:4px 0 0 0; color:#f1f5f9; font-size:1.1rem; font-weight:700;'>"
-            f"{sim_days_label}</p>"
+            f"<p style='margin:0; color:#94a3b8; font-size:0.7rem; text-transform:uppercase;'>Drift Rate</p>"
+            f"<p style='margin:4px 0 0 0; color:#38bdf8; font-size:1.0rem; font-weight:700;'>{sim_rate:.5f}</p>"
+            f"<p style='margin:2px 0 0 0; color:#64748b; font-size:0.65rem;'>{sensor_unit}/day</p>"
             f"</div>", unsafe_allow_html=True
         )
         sim_r3.markdown(
             f"<div style='background:#0f172a; border-radius:8px; padding:12px; text-align:center;'>"
-            f"<p style='margin:0; color:#94a3b8; font-size:0.7rem; text-transform:uppercase;'>Sim. Risk Score</p>"
-            f"<p style='margin:4px 0 0 0; color:#f1f5f9; font-size:1.1rem; font-weight:700;'>{sim_risk_score}</p>"
+            f"<p style='margin:0; color:#94a3b8; font-size:0.7rem; text-transform:uppercase;'>Est. Days to Breach</p>"
+            f"<p style='margin:4px 0 0 0; color:#f1f5f9; font-size:0.9rem; font-weight:700;'>"
+            f"{sim_days_label}</p>"
             f"</div>", unsafe_allow_html=True
         )
         sim_r4.markdown(
             f"<div style='background:#0f172a; border-radius:8px; padding:12px; text-align:center;'>"
-            f"<p style='margin:0; color:#94a3b8; font-size:0.7rem; text-transform:uppercase;'>Sim. Severity</p>"
-            f"<p style='margin:4px 0 0 0; color:{sev_color}; font-size:1.1rem; font-weight:700;'>{sim_severity}</p>"
+            f"<p style='margin:0; color:#94a3b8; font-size:0.7rem; text-transform:uppercase;'>Risk Score</p>"
+            f"<p style='margin:4px 0 0 0; color:#f1f5f9; font-size:1.0rem; font-weight:700;'>{sim_risk_score} / 100</p>"
+            f"</div>", unsafe_allow_html=True
+        )
+        sim_r5.markdown(
+            f"<div style='background:#0f172a; border-radius:8px; padding:12px; text-align:center;'>"
+            f"<p style='margin:0; color:#94a3b8; font-size:0.7rem; text-transform:uppercase;'>Severity</p>"
+            f"<p style='margin:4px 0 0 0; color:{sev_color}; font-size:1.0rem; font-weight:700;'>{sim_severity}</p>"
             f"</div>", unsafe_allow_html=True
         )
 
         # Simulated chart with adjusted threshold — always show to reflect scenario changes
         sim_chart = readings[["READING_TS", "READING_VALUE"]].copy()
-        max_day = readings["DAY_NUM"].max()
-        forecast_days = 90
+        forecast_days = 180  # show 6-month horizon for better context
         future_ts = pd.date_range(readings["READING_TS"].max() + pd.Timedelta(days=1), periods=forecast_days, freq="D")
 
         # Forecast starts from the last actual reading and projects forward using simulated slope
@@ -281,14 +314,17 @@ def render(facilities, sensors, audit_cases, escalations):
         sim_chart = pd.concat([sim_chart, forecast_df], ignore_index=True)
         sim_chart["SIM_THRESHOLD"] = adjusted_threshold
 
-        # Only show last 120 days of readings + forecast for better visual contrast
-        cutoff_ts = readings["READING_TS"].max() - pd.Timedelta(days=120)
+        # Only show last 180 days of readings + forecast for better visual contrast
+        cutoff_ts = readings["READING_TS"].max() - pd.Timedelta(days=180)
         sim_chart["READING_TS_PARSED"] = pd.to_datetime(sim_chart["READING_TS"])
         sim_chart = sim_chart[sim_chart["READING_TS_PARSED"] >= cutoff_ts].drop(columns=["READING_TS_PARSED"])
         sim_chart = sim_chart.set_index("READING_TS")
 
         st.line_chart(sim_chart[["READING_VALUE", "FORECAST", "SIM_THRESHOLD"]], use_container_width=True)
-        st.caption(f"Scenario: {scenario} | Simulated slope: {abs(sim_slope):.4f} {sensor_unit}/day")
+        st.caption(
+            f"Scenario: **{scenario}** · Drift rate: {sim_rate:.5f} {sensor_unit}/day · "
+            f"Multiplier: ×{scenario_multiplier:.2f} · Est. breach: {sim_days_label}"
+        )
 
     else:
         st.info("No readings available for this sensor.")

@@ -50,8 +50,8 @@ def get_facility_breakdown():
 
 
 def render():
-    st.markdown("## Model Evaluation")
-    st.caption("Detection accuracy evaluated against synthetic injection labels — anomalies were embedded during data generation")
+    st.markdown("## Detection Diagnostics")
+    st.caption("Pipeline validation against synthetic ground-truth labels — anomalies injected during data generation to verify detection coverage")
 
     st.markdown("")
 

@@ -30,12 +30,12 @@ st.sidebar.markdown("")
 
 page = st.sidebar.radio(
     "Navigation",
-    ["Overview", "Dashboard", "Case Audit Trail", "Model Evaluation", "Data Chatbot"],
+    ["Overview", "Dashboard", "Case Audit Trail", "Detection Diagnostics", "Data Chatbot"],
     format_func=lambda x: {
         "Overview": "\u2139\u2003Overview",
         "Dashboard": "\u2318\u2003Dashboard",
         "Case Audit Trail": "\u2637\u2003Audit Trail",
-        "Model Evaluation": "\u2261\u2003Evaluation",
+        "Detection Diagnostics": "\u2261\u2003Diagnostics",
         "Data Chatbot": "\u2734\u2003Chatbot"
     }[x],
     label_visibility="collapsed"
@@ -55,7 +55,7 @@ elif page == "Dashboard":
     dashboard.render(facilities, sensors, audit_cases, escalations)
 elif page == "Case Audit Trail":
     audit_trail.render(facilities, audit_cases)
-elif page == "Model Evaluation":
+elif page == "Detection Diagnostics":
     model_evaluation.render()
 elif page == "Data Chatbot":
     chatbot.render()
