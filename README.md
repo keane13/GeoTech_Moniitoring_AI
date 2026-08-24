@@ -246,7 +246,7 @@ The operational dashboard is deployed as **Streamlit in Snowflake (SiS)** and ac
 | ![chat](docs/screenshots/chat.png) | Streamlit chatbot querying sensor data |
 | ![slack](docs/screenshots/slack.png) | Live Slack alert on a CRITICAL case |
 
-*(Replace with real screenshots before submission)*
+
 
 ---
 
